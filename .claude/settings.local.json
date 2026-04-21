@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --version)",
+      "Bash(npm --version)",
+      "Bash(where.exe pnpm *)",
+      "Bash(npm install *)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm -w exec tsc --version)",
+      "Bash(chmod +x D:/feishu-coding-bot/scripts/dev-all.sh D:/feishu-coding-bot/scripts/smoke.sh)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm --filter @feishu-bot/protocol build)",
+      "Bash(pnpm --filter @feishu-bot/protocol test)"
+    ]
+  }
+}
