@@ -14,7 +14,14 @@
 //
 // Not a substitute for real agent-core. Delete once Phase D lands.
 
-import { WebSocketServer } from "ws";
+// Resolve `ws` via the bot-host package — it's a direct dependency there, so
+// pnpm's store guarantees it exists even when root node_modules is unhoisted.
+// This keeps the script runnable without adding a root dev-dependency.
+import { createRequire } from "node:module";
+const requireFromBotHost = createRequire(
+  new URL("../packages/bot-host/package.json", import.meta.url),
+);
+const { WebSocketServer } = requireFromBotHost("ws");
 
 const HOST = process.env.AGENT_WS_HOST ?? "127.0.0.1";
 const PORT = Number(process.env.AGENT_WS_PORT ?? 8765);
