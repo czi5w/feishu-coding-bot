@@ -11,8 +11,6 @@ import {
   type ReportProgressParams,
   type RpcError,
 } from "@feishu-bot/protocol";
-import type { Transport } from "../router/dispatcher.js";
-
 // ─── State machine ──────────────────────────────────────────────────────
 
 export type WsState =
@@ -43,7 +41,7 @@ interface PendingEntry {
   created_ms: number;
 }
 
-export class WsClient implements Transport {
+export class WsClient {
   private readonly opts: Required<
     Omit<WsClientOptions, "logger">
   > & { logger?: Logger };
