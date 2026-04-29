@@ -10,7 +10,8 @@ describe("whitelist", () => {
     process.env.FEISHU_BOT_OPEN_ID = "ou_bot";
     process.env.ALLOWED_CHAT_IDS = "oc_1, oc_2 ,oc_3";
     process.env.ALLOWED_USER_IDS = "ou_a, ou_b";
-    process.env.INNER_WS_URL = "ws://127.0.0.1:8765";
+    process.env.INNER_WS_HOST = "0.0.0.0";
+    process.env.INNER_WS_PORT = "8765";
   });
 
   afterEach(() => {

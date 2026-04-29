@@ -24,11 +24,10 @@ const schema = z.object({
   ALLOWED_CHAT_IDS: csv,
   ALLOWED_USER_IDS: csv,
 
-  // Transport
-  INNER_WS_URL: z.string().url(),
-  WS_RECONNECT_MIN_MS: z.coerce.number().int().positive().default(1000),
-  WS_RECONNECT_MAX_MS: z.coerce.number().int().positive().default(60000),
-  WS_HEARTBEAT_MS: z.coerce.number().int().positive().default(15000),
+  // Inner WS Server (listens for AI_Proxy connections)
+  INNER_WS_HOST: z.string().default("0.0.0.0"),
+  INNER_WS_PORT: z.coerce.number().int().positive().default(8765),
+  AI_PROXY_MODEL: z.string().default(""),
 
   // Storage
   AUDIT_DB_PATH: z.string().min(1).default("./data/audit.db"),

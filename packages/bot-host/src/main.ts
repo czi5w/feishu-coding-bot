@@ -10,12 +10,13 @@ import { isAllowed } from "./router/whitelist.js";
 import { normalizeInstruction } from "./router/parser.js";
 import { createDispatcher } from "./router/dispatcher.js";
 import { recoverOrphans } from "./router/orphan-recovery.js";
-import { WsClient } from "./transport/ws-client.js";
+import { InnerWsServer } from "./transport/inner-ws-server.js";
 
 async function main(): Promise<void> {
   logger.info(
     {
-      inner_ws_url: config.INNER_WS_URL,
+      inner_ws_host: config.INNER_WS_HOST,
+      inner_ws_port: config.INNER_WS_PORT,
       allowed_chats: config.ALLOWED_CHAT_IDS.length,
       allowed_users: config.ALLOWED_USER_IDS.length,
     },
@@ -25,7 +26,6 @@ async function main(): Promise<void> {
   // 1. Storage
   initDefaultDatabase(config.AUDIT_DB_PATH);
 
-  // Hourly dedup prune — keep the table bounded.
   const pruneTimer = setInterval(
     () => {
       const removed = pruneOldEvents(Math.floor(Date.now() / 1000));
@@ -35,15 +35,13 @@ async function main(): Promise<void> {
   );
   pruneTimer.unref?.();
 
-  // 2. WS transport to the internal agent-core
-  const ws = new WsClient({
-    url: config.INNER_WS_URL,
-    reconnectMinMs: config.WS_RECONNECT_MIN_MS,
-    reconnectMaxMs: config.WS_RECONNECT_MAX_MS,
-    heartbeatMs: config.WS_HEARTBEAT_MS,
+  // 2. Inner WS Server — waits for AI_Proxy to connect
+  const innerServer = new InnerWsServer({
+    host: config.INNER_WS_HOST,
+    port: config.INNER_WS_PORT,
     logger,
   });
-  ws.start();
+  innerServer.start();
 
   // 3. Feishu client + reply helpers
   const feishu = await startFeishuClient(async (ev) => {
@@ -54,7 +52,6 @@ async function main(): Promise<void> {
     });
     if (!msg) return;
 
-    // Whitelist check — reject outside-list messages with an audit entry.
     if (!isAllowed(msg.chat_id, msg.user_id)) {
       logAudit({
         ts: msg.ts,
@@ -81,15 +78,14 @@ async function main(): Promise<void> {
   });
   const reply = makeReplyClient(feishu.api, config.REPLY_THROTTLE_MS, logger);
 
-  // 4. Dispatcher wires Feishu ↔ WS ↔ storage together.
+  // 4. Dispatcher wires Feishu ↔ InnerWsServer ↔ storage together.
   const dispatcher = createDispatcher({
     reply,
-    transport: ws,
+    transport: innerServer,
     logger,
   });
 
-  // 5. Orphan recovery — any task left queued/running from a previous boot
-  //    gets marked orphaned and its chat notified.
+  // 5. Orphan recovery
   await recoverOrphans({ api: feishu.api, logger });
 
   logger.info("bot-host ready");
@@ -100,7 +96,7 @@ async function main(): Promise<void> {
       clearInterval(pruneTimer);
       void Promise.allSettled([
         reply.shutdown(),
-        ws.stop(),
+        innerServer.stop(),
         feishu.stop(),
       ]).then(() => resolve());
     };

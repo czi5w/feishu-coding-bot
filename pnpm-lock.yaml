@@ -20,6 +20,9 @@ importers:
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.39)
+      ws:
+        specifier: ^8.16.0
+        version: 8.20.0
 
   packages/agent-core:
     dependencies:
