@@ -56,17 +56,20 @@ export function makeReplyClient(
 ): ReplyClient {
   const pending = new Map<string, PendingUpdate>();
 
-  async function patchMessage(
+  async function updateMessage(
     reply_message_id: string,
     content: string,
   ): Promise<void> {
     try {
-      await api.im.message.patch({
+      await api.im.message.update({
         path: { message_id: reply_message_id },
-        data: { content: JSON.stringify({ text: content }) },
+        data: {
+          content: JSON.stringify({ text: content }),
+          msg_type: "text",
+        },
       });
     } catch (err: unknown) {
-      log?.warn({ err, reply_message_id }, "lark message.patch failed");
+      log?.warn({ err, reply_message_id }, "lark message.update failed");
     }
   }
 
@@ -75,12 +78,12 @@ export function makeReplyClient(
     if (!entry) return;
     clearTimeout(entry.timer);
     pending.delete(task_id);
-    await patchMessage(entry.reply_message_id, entry.content);
+    await updateMessage(entry.reply_message_id, entry.content);
   }
 
   return {
     async createInitialReply(task_id, chat_id, reply_to_message_id) {
-      const text = `🟡 [task_${shortTaskId(task_id)}] queued`;
+      const text = `🤔 thinking...`;
       const res = await api.im.message.reply({
         path: { message_id: reply_to_message_id },
         data: {
@@ -122,7 +125,7 @@ export function makeReplyClient(
         clearTimeout(entry.timer);
         pending.delete(task_id);
         // Best-effort flush; don't block shutdown on lark errors.
-        await patchMessage(entry.reply_message_id, entry.content).catch(
+        await updateMessage(entry.reply_message_id, entry.content).catch(
           () => undefined,
         );
       }
