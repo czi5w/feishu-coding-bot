@@ -3,7 +3,6 @@ import type { Logger } from "pino";
 import { logAudit } from "../storage/audit.js";
 import {
   createTask,
-  setReplyMessageId,
   setResult,
   updateStatus,
 } from "../storage/task-store.js";
@@ -60,20 +59,6 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         extra: { event_id: msg.event_id },
       });
 
-      let reply_message_id: string;
-      try {
-        reply_message_id = await reply.createInitialReply(
-          task_id,
-          msg.chat_id,
-          msg.message_id,
-        );
-      } catch (err: unknown) {
-        log?.error({ err, task_id }, "failed to create initial reply");
-        updateStatus(task_id, "failed");
-        return;
-      }
-      setReplyMessageId(task_id, reply_message_id);
-
       updateStatus(task_id, "running");
       logAudit({
         ts: Math.floor(Date.now() / 1000),
@@ -83,22 +68,18 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         extra: { method: "sendChat" },
       });
 
-      const onChunk = (accumulated: string): void => {
-        reply.throttledUpdate(task_id, reply_message_id, accumulated);
-      };
-
       try {
         const fullReply = await transport.sendChat(
           task_id,
           msg.raw_text,
-          onChunk,
+          () => {},
         );
 
-        const resultObj = { status: "success", reply: fullReply };
-        setResult(task_id, JSON.stringify(resultObj));
+        setResult(task_id, JSON.stringify({ status: "success", reply: fullReply }));
         updateStatus(task_id, "done");
-        reply.throttledUpdate(task_id, reply_message_id, fullReply);
-        await reply.forceFlush(task_id);
+
+        await reply.replyText(msg.message_id, fullReply);
+
         logAudit({
           ts: Math.floor(Date.now() / 1000),
           direction: "out",
@@ -110,9 +91,10 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         log?.error({ err, task_id }, "sendChat failed");
         updateStatus(task_id, "failed");
         const summary = err instanceof Error ? err.message : String(err);
-        const content = `❌ [task_${shortTaskId(task_id)}] failed\n  ${summary}`;
-        reply.throttledUpdate(task_id, reply_message_id, content);
-        await reply.forceFlush(task_id);
+        const content = `❌ failed: ${summary}`;
+
+        await reply.replyText(msg.message_id, content);
+
         logAudit({
           ts: Math.floor(Date.now() / 1000),
           direction: "out",

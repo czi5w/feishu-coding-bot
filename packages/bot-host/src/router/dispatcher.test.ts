@@ -9,37 +9,22 @@ import {
 } from "./dispatcher.js";
 
 function makeFakeReply(): ReplyClient & {
-  created: Array<[string, string, string]>;
-  updates: Array<[string, string, string]>;
-  flushed: string[];
+  replies: Array<[string, string]>;
 } {
-  const created: Array<[string, string, string]> = [];
-  const updates: Array<[string, string, string]> = [];
-  const flushed: string[] = [];
+  const replies: Array<[string, string]> = [];
   return {
-    created,
-    updates,
-    flushed,
-    async createInitialReply(task_id, chat_id, reply_to_message_id) {
-      created.push([task_id, chat_id, reply_to_message_id]);
-      return `om_reply_${task_id.slice(-4)}`;
+    replies,
+    async replyText(reply_to_message_id, content) {
+      replies.push([reply_to_message_id, content]);
+      return `om_reply_${reply_to_message_id.slice(-4)}`;
     },
-    throttledUpdate(task_id, reply_message_id, content) {
-      updates.push([task_id, reply_message_id, content]);
-    },
-    async forceFlush(task_id) {
-      flushed.push(task_id);
-    },
-    async shutdown() {
-      // noop
-    },
+    async shutdown() {},
   };
 }
 
 interface FakeTransport extends Transport {
   lastId: string | undefined;
   lastText: string | undefined;
-  emitChunk: (accumulated: string) => void;
   resolve: (fullReply: string) => void;
   reject: (err: unknown) => void;
 }
@@ -48,13 +33,11 @@ function makeFakeTransport(): FakeTransport {
   const t: FakeTransport = {
     lastId: undefined,
     lastText: undefined,
-    emitChunk: () => undefined,
     resolve: () => undefined,
     reject: () => undefined,
-    async sendChat(id, text, onChunk) {
+    async sendChat(id, text, _onChunk) {
       t.lastId = id;
       t.lastText = text;
-      t.emitChunk = onChunk;
       return new Promise<string>((resolve, reject) => {
         t.resolve = resolve;
         t.reject = reject;
@@ -91,20 +74,14 @@ describe("dispatcher", () => {
     const dispatcher = createDispatcher({ reply, transport });
 
     const p = dispatcher.dispatch(sampleIncoming);
-
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(reply.created).toHaveLength(1);
     expect(transport.lastText).toBe("add a null check to login.ts");
     const task_id = transport.lastId!;
 
     const running = getTask(task_id)!;
     expect(running.status).toBe("running");
-    expect(running.reply_message_id).toBe(`om_reply_${task_id.slice(-4)}`);
-
-    transport.emitChunk("AI is thinking...");
-    expect(reply.updates.at(-1)?.[2]).toContain("AI is thinking...");
 
     transport.resolve("Here is the fix for handleLogin.");
     await p;
@@ -114,10 +91,8 @@ describe("dispatcher", () => {
     expect(JSON.parse(done.result_json!).reply).toBe(
       "Here is the fix for handleLogin.",
     );
-    expect(reply.flushed).toContain(task_id);
-    expect(reply.updates.at(-1)?.[2]).toBe(
-      "Here is the fix for handleLogin.",
-    );
+    expect(reply.replies).toHaveLength(1);
+    expect(reply.replies[0]![1]).toBe("Here is the fix for handleLogin.");
   });
 
   it("marks task failed when transport rejects", async () => {
@@ -135,27 +110,7 @@ describe("dispatcher", () => {
 
     const rec = getTask(task_id)!;
     expect(rec.status).toBe("failed");
-    expect(reply.flushed).toContain(task_id);
-    expect(reply.updates.at(-1)?.[2]).toContain("AI_Proxy not connected");
-  });
-
-  it("marks task failed and skips transport when initial reply fails", async () => {
-    const reply = makeFakeReply();
-    reply.createInitialReply = vi
-      .fn()
-      .mockRejectedValue(new Error("lark down"));
-    const transport = makeFakeTransport();
-    const sendSpy = vi.spyOn(transport, "sendChat");
-    const dispatcher = createDispatcher({ reply, transport });
-
-    await dispatcher.dispatch(sampleIncoming);
-
-    expect(sendSpy).not.toHaveBeenCalled();
-    const rows = db
-      .prepare(`SELECT task_id, status FROM task_state`)
-      .all() as { task_id: string; status: string }[];
-    expect(rows).toHaveLength(1);
-    expect(rows[0]!.status).toBe("failed");
+    expect(reply.replies.at(-1)?.[1]).toContain("AI_Proxy not connected");
   });
 
   it("writes audit log entries for in / rpc_out / out", async () => {
