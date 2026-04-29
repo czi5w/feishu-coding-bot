@@ -20,9 +20,9 @@ const schema = z.object({
   FEISHU_APP_SECRET: z.string().min(1),
   FEISHU_BOT_OPEN_ID: z.string().min(1),
 
-  // Whitelist
-  ALLOWED_CHAT_IDS: csv,
-  ALLOWED_USER_IDS: csv,
+  // Whitelist — leave empty to allow all
+  ALLOWED_CHAT_IDS: csv.or(z.literal("").transform(() => [] as string[])).default(""),
+  ALLOWED_USER_IDS: csv.or(z.literal("").transform(() => [] as string[])).default(""),
 
   // Inner WS Server (listens for AI_Proxy connections)
   INNER_WS_HOST: z.string().default("0.0.0.0"),
