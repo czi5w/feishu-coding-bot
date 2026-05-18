@@ -1,4 +1,16 @@
-# Feishu Coding Bot
+# Feishu Coding Bot — DEPRECATED
+
+> **此仓库已停止维护。** 请使用新方案 [`ai-proxy-mcp`](../ai-proxy-mcp/)：
+> - 飞书接入直接复用 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 0.6+ 自带的 `hermes-feishu` gateway
+> - 任务调度交给 Hermes 的 LLM ReAct 循环
+> - `ai-proxy-mcp` 只承担把 AI_Proxy 反向连接包装成 MCP 工具的职责
+> - AI_Proxy C++ 端无需改动
+>
+> 详见 [`ai-proxy-mcp/README.md`](../ai-proxy-mcp/README.md) 和 [`ai-proxy-mcp/deploy/install.md`](../ai-proxy-mcp/deploy/install.md)。
+>
+> 以下原始 README 仅供历史参考。
+
+---
 
 > 把**飞书群聊里的自然语言指令**桥接到**域内电脑上的 Cursor CLI**——用户在白名单群 `@机器人` 提需求,域内的 Cursor Agent 自动执行变更并把进展实时回贴到原群的 thread。
 

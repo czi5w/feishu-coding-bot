@@ -29,6 +29,21 @@ const schema = z.object({
   INNER_WS_PORT: z.coerce.number().int().positive().default(8765),
   AI_PROXY_MODEL: z.string().default(""),
 
+  // User -> device routing (format: user_id:device_id, comma-separated)
+  USER_DEVICE_MAP: z
+    .string()
+    .default("")
+    .transform((s) => {
+      const map = new Map<string, string>();
+      for (const pair of s.split(",").map((p) => p.trim()).filter(Boolean)) {
+        const sep = pair.indexOf(":");
+        if (sep > 0) {
+          map.set(pair.slice(0, sep).trim(), pair.slice(sep + 1).trim());
+        }
+      }
+      return map;
+    }),
+
   // Storage
   AUDIT_DB_PATH: z.string().min(1).default("./data/audit.db"),
 

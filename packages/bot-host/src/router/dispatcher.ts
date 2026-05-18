@@ -1,5 +1,6 @@
 import { ulid } from "ulid";
 import type { Logger } from "pino";
+import { config } from "../config.js";
 import { logAudit } from "../storage/audit.js";
 import {
   createTask,
@@ -14,6 +15,7 @@ export interface Transport {
   sendChat(
     id: string,
     text: string,
+    deviceId: string,
     onChunk: (accumulated: string) => void,
   ): Promise<string>;
 }
@@ -28,6 +30,21 @@ export interface Dispatcher {
   dispatch(msg: IncomingMessage): Promise<void>;
 }
 
+/**
+ * Extract `/use <device_id>` directive from the beginning of the message.
+ * Returns the target device and the remaining text.
+ */
+export function parseDeviceDirective(text: string): {
+  deviceId: string | undefined;
+  text: string;
+} {
+  const match = /^\/use\s+(\S+)\s*/.exec(text);
+  if (match) {
+    return { deviceId: match[1]!, text: text.slice(match[0].length).trim() };
+  }
+  return { deviceId: undefined, text };
+}
+
 export function createDispatcher(deps: DispatcherDeps): Dispatcher {
   const { reply, transport } = deps;
   const log = deps.logger;
@@ -35,6 +52,15 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
   return {
     async dispatch(msg: IncomingMessage): Promise<void> {
       const task_id = ulid();
+
+      const parsed = parseDeviceDirective(msg.raw_text);
+      const instruction = parsed.text || msg.raw_text;
+
+      // Priority: 1) /use directive  2) user default  3) any online device
+      const deviceId =
+        parsed.deviceId ??
+        config.USER_DEVICE_MAP.get(msg.user_id) ??
+        "";
 
       createTask({
         task_id,
@@ -44,9 +70,10 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         created_ts: msg.ts,
         status: "queued",
         request_json: JSON.stringify({
-          text: msg.raw_text,
+          text: instruction,
           chat_id: msg.chat_id,
           user_id: msg.user_id,
+          device_id: deviceId || undefined,
         }),
       });
       logAudit({
@@ -65,13 +92,14 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         direction: "rpc_out",
         task_id,
         chat_id: msg.chat_id,
-        extra: { method: "sendChat" },
+        extra: { method: "sendChat", device_id: deviceId || "any" },
       });
 
       try {
         const fullReply = await transport.sendChat(
           task_id,
-          msg.raw_text,
+          instruction,
+          deviceId,
           () => {},
         );
 

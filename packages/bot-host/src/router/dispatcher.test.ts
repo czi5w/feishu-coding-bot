@@ -35,7 +35,7 @@ function makeFakeTransport(): FakeTransport {
     lastText: undefined,
     resolve: () => undefined,
     reject: () => undefined,
-    async sendChat(id, text, _onChunk) {
+    async sendChat(id, text, _deviceId, _onChunk) {
       t.lastId = id;
       t.lastText = text;
       return new Promise<string>((resolve, reject) => {
